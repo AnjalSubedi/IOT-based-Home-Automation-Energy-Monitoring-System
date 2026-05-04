@@ -22,6 +22,7 @@ if (process.env.NODE_ENV === 'development') {
 
 // Routes
 app.use('/api/readings', require('./routes/readingRoutes'));
+app.use('/api/relay', require('./routes/relayRoutes'));
 
 // Health check
 app.get('/health', (req, res) => {

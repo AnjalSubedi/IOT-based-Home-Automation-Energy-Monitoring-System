@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Relay Control Test</title>
+    <style>
+        body { font-family: sans-serif; max-width: 600px; margin: 2rem auto; padding: 0 1rem; }
+        .card { border: 1px solid #ccc; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; }
+        button { padding: 0.5rem 1rem; cursor: pointer; }
+        .status { font-weight: bold; }
+        .on { color: green; }
+        .off { color: red; }
+    </style>
+</head>
+<body>
+    <h1>Relay Control Test</h1>
+    
+    <div class="card">
+        <h2>Control</h2>
+        <label for="deviceId">Device ID:</label>
+        <input type="text" id="deviceId" value="esp32-001">
+        <button onclick="getStatus()">Get Status</button>
+        <br><br>
+        <p>Current Relay State: <span id="currentStatus" class="status">Unknown</span></p>
+        <button onclick="toggleRelay()">Toggle Relay</button>
+    </div>
+
+    <div class="card">
+        <h2>Event Log</h2>
+        <button onclick="getLogs()">Refresh Logs</button>
+        <ul id="logList"></ul>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:5000/api/relay'; 
+        // Adjust port if needed, assuming default 5000 from server.js
+
+        let currentState = 0;
+
+        async function getStatus() {
+            const deviceId = document.getElementById('deviceId').value;
+            try {
+                const res = await fetch(`${API_URL}/${deviceId}`);
+                const data = await res.json();
+                currentState = data.relay1;
+                updateDisplay(currentState);
+                getLogs();
+            } catch (err) {
+                console.error(err);
+                alert('Error fetching status');
+            }
+        }
+
+        async function toggleRelay() {
+            const deviceId = document.getElementById('deviceId').value;
+            const newState = currentState === 1 ? 0 : 1;
+            
+            try {
+                const res = await fetch(`${API_URL}/${deviceId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ relay1: newState, source: 'web' })
+                });
+                const data = await res.json();
+                currentState = data.relay1;
+                updateDisplay(currentState);
+                getLogs();
+            } catch (err) {
+                console.error(err);
+                alert('Error toggling relay');
+            }
+        }
+
+        async function getLogs() {
+            const deviceId = document.getElementById('deviceId').value;
+            try {
+                const res = await fetch(`${API_URL}/${deviceId}/events?limit=10`);
+                const events = await res.json();
+                
+                const list = document.getElementById('logList');
+                list.innerHTML = events.map(e => 
+                    `<li>${new Date(e.created_at).toLocaleString()} - ${e.source} set relay to ${e.relay1}</li>`
+                ).join('');
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        function updateDisplay(state) {
+            const el = document.getElementById('currentStatus');
+            el.textContent = state === 1 ? 'ON' : 'OFF';
+            el.className = `status ${state === 1 ? 'on' : 'off'}`;
+        }
+
+        // Initial load
+        getStatus();
+    </script>
+</body>
+</html>

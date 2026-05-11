@@ -3,98 +3,408 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Relay Control Test</title>
+    <title>Home Automation Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: sans-serif; max-width: 600px; margin: 2rem auto; padding: 0 1rem; }
-        .card { border: 1px solid #ccc; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; }
-        button { padding: 0.5rem 1rem; cursor: pointer; }
-        .status { font-weight: bold; }
-        .on { color: green; }
-        .off { color: red; }
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg:      #0f1117;
+            --surface: #1a1d27;
+            --card:    #21253a;
+            --border:  #2e3354;
+            --accent:  #6c63ff;
+            --accent2: #00d4aa;
+            --text:    #e8eaf6;
+            --muted:   #8b91b0;
+            --on:      #00e676;
+            --off:     #ff4d6d;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 1.5rem;
+        }
+
+        /* ── Header ── */
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        header h1 {
+            font-size: 1.6rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        header p { font-size: 0.8rem; color: var(--muted); margin-top: 0.25rem; }
+
+        .device-row { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+        .device-row label { color: var(--muted); font-size: 0.85rem; }
+        .device-row input {
+            background: var(--card);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 0.45rem 0.75rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .device-row input:focus { border-color: var(--accent); }
+
+        /* ── Badge ── */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.3rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        .badge::before {
+            content: '';
+            width: 7px; height: 7px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .badge.live    { background: rgba(0,230,118,.15); color: var(--on); }
+        .badge.live::before    { background: var(--on); animation: pulse 1.5s infinite; }
+        .badge.offline { background: rgba(255,77,109,.15); color: var(--off); }
+        .badge.offline::before { background: var(--off); }
+
+        @keyframes pulse {
+            0%,100% { opacity:1; transform:scale(1); }
+            50%      { opacity:.4; transform:scale(.8); }
+        }
+
+        /* ── Sensor grid ── */
+        .sensor-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .sensor-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 1.2rem 1.4rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.45rem;
+            position: relative;
+            overflow: hidden;
+            transition: border-color .2s, transform .2s;
+        }
+        .sensor-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 3px;
+            background: var(--stripe, var(--accent));
+            border-radius: 14px 14px 0 0;
+        }
+        .sensor-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+        .sensor-card .s-icon  { font-size: 1.5rem; }
+        .sensor-card .s-label { font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600; }
+        .sensor-card .s-value { font-size: 1.8rem; font-weight: 700; line-height: 1; }
+        .sensor-card .s-unit  { font-size: .8rem; color: var(--muted); }
+
+        /* ── Relay card ── */
+        .relay-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 1.4rem;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        .relay-info h2 { font-size: 1rem; font-weight: 600; margin-bottom: .3rem; }
+        .relay-info .relay-state { font-size: .85rem; color: var(--muted); }
+        .relay-info .relay-state span { font-weight: 700; }
+        .st-on  { color: var(--on); }
+        .st-off { color: var(--off); }
+
+        /* Toggle switch */
+        .toggle-wrap { position: relative; width: 64px; height: 34px; cursor: pointer; }
+        .toggle-wrap input { display: none; }
+        .toggle-wrap .slider {
+            position: absolute;
+            inset: 0;
+            background: var(--border);
+            border-radius: 34px;
+            transition: background .3s;
+        }
+        .toggle-wrap .slider::after {
+            content: '';
+            position: absolute;
+            width: 26px; height: 26px;
+            background: white;
+            border-radius: 50%;
+            top: 4px; left: 4px;
+            transition: transform .3s;
+            box-shadow: 0 2px 6px rgba(0,0,0,.4);
+        }
+        .toggle-wrap input:checked + .slider { background: var(--on); }
+        .toggle-wrap input:checked + .slider::after { transform: translateX(30px); }
+
+        /* ── Log card ── */
+        .log-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 1.4rem;
+        }
+        .log-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: .5rem;
+            margin-bottom: 1rem;
+        }
+        .log-header h2 { font-size: 1rem; font-weight: 600; }
+
+        .btn {
+            padding: .5rem 1.2rem;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--surface);
+            color: var(--text);
+            font-family: inherit;
+            font-size: .85rem;
+            cursor: pointer;
+            transition: background .2s, border-color .2s;
+        }
+        .btn:hover { background: var(--card); border-color: var(--accent); }
+
+        .log-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: .5rem;
+            max-height: 260px;
+            overflow-y: auto;
+        }
+        .log-list::-webkit-scrollbar { width: 5px; }
+        .log-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+        .log-item {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: .6rem .9rem;
+            font-size: .8rem;
+            display: flex;
+            align-items: center;
+            gap: .75rem;
+        }
+        .l-dot  { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+        .dot-on  { background: var(--on); }
+        .dot-off { background: var(--off); }
+        .l-time { color: var(--muted); white-space: nowrap; }
+        .l-src  { color: var(--accent); font-weight: 600; }
+
+        .last-updated { font-size: .72rem; color: var(--muted); text-align: right; margin-top: .6rem; }
     </style>
 </head>
 <body>
-    <h1>Relay Control Test</h1>
-    
-    <div class="card">
-        <h2>Control</h2>
+
+<!-- Header -->
+<header>
+    <div>
+        <h1>⚡ Home Automation Dashboard</h1>
+        <p>IoT Energy Monitoring &amp; Relay Control</p>
+    </div>
+    <div class="device-row">
         <label for="deviceId">Device ID:</label>
         <input type="text" id="deviceId" value="esp32-001">
-        <button onclick="getStatus()">Get Status</button>
-        <br><br>
-        <p>Current Relay State: <span id="currentStatus" class="status">Unknown</span></p>
-        <button onclick="toggleRelay()">Toggle Relay</button>
+        <span id="connBadge" class="badge offline">Offline</span>
     </div>
+</header>
 
-    <div class="card">
-        <h2>Event Log</h2>
-        <button onclick="getLogs()">Refresh Logs</button>
-        <ul id="logList"></ul>
+<!-- Sensor Cards -->
+<div class="sensor-grid">
+    <div class="sensor-card" style="--stripe:#6c63ff">
+        <div class="s-icon">🔌</div>
+        <div class="s-label">Voltage</div>
+        <div class="s-value" id="voltage">—</div>
+        <div class="s-unit">Volts (V)</div>
     </div>
+    <div class="sensor-card" style="--stripe:#00d4aa">
+        <div class="s-icon">⚡</div>
+        <div class="s-label">Current</div>
+        <div class="s-value" id="current">—</div>
+        <div class="s-unit">Amperes (A)</div>
+    </div>
+    <div class="sensor-card" style="--stripe:#f4a261">
+        <div class="s-icon">💡</div>
+        <div class="s-label">Active Power</div>
+        <div class="s-value" id="power">—</div>
+        <div class="s-unit">Watts (W)</div>
+    </div>
+    <div class="sensor-card" style="--stripe:#ff79c6">
+        <div class="s-icon">🔋</div>
+        <div class="s-label">Energy</div>
+        <div class="s-value" id="energy">—</div>
+        <div class="s-unit">kWh</div>
+    </div>
+    <div class="sensor-card" style="--stripe:#8be9fd">
+        <div class="s-icon">📡</div>
+        <div class="s-label">Frequency</div>
+        <div class="s-value" id="frequency">—</div>
+        <div class="s-unit">Hertz (Hz)</div>
+    </div>
+    <div class="sensor-card" style="--stripe:#50fa7b">
+        <div class="s-icon">📊</div>
+        <div class="s-label">Power Factor</div>
+        <div class="s-value" id="powerFactor">—</div>
+        <div class="s-unit">cos φ (0 – 1)</div>
+    </div>
+</div>
 
-    <script>
-        const API_URL = 'http://localhost:5000/api/relay'; 
-        // Adjust port if needed, assuming default 5000 from server.js
+<!-- Relay Control -->
+<div class="relay-card">
+    <div class="relay-info">
+        <h2>🔁 Relay Control</h2>
+        <div class="relay-state">Status: <span id="relayText" class="st-off">OFF</span></div>
+    </div>
+    <label class="toggle-wrap" title="Toggle Relay">
+        <input type="checkbox" id="relayToggle" onchange="toggleRelay()">
+        <span class="slider"></span>
+    </label>
+</div>
 
-        let currentState = 0;
+<!-- Event Log -->
+<div class="log-card">
+    <div class="log-header">
+        <h2>📋 Relay Event Log</h2>
+        <button class="btn" onclick="getLogs()">⟳ Refresh</button>
+    </div>
+    <ul class="log-list" id="logList">
+        <li class="log-item"><span class="l-time">—</span><span>No events yet</span></li>
+    </ul>
+    <div class="last-updated" id="lastUpdated">Last updated: never</div>
+</div>
 
-        async function getStatus() {
-            const deviceId = document.getElementById('deviceId').value;
-            try {
-                const res = await fetch(`${API_URL}/${deviceId}`);
-                const data = await res.json();
-                currentState = data.relay1;
-                updateDisplay(currentState);
-                getLogs();
-            } catch (err) {
-                console.error(err);
-                alert('Error fetching status');
+<script>
+    const RELAY_API   = 'http://localhost:5000/api/relay';
+    const READING_API = 'http://localhost:5000/api/readings';
+
+    let relayState = 0;
+    let timer = null;
+
+    const fmt = (v, d = 2) =>
+        (v !== undefined && v !== null && !isNaN(v)) ? Number(v).toFixed(d) : '—';
+
+    function setOnline(online) {
+        const el = document.getElementById('connBadge');
+        el.className = 'badge ' + (online ? 'live' : 'offline');
+        el.textContent = online ? 'Live' : 'Offline';
+    }
+
+    function stampUpdated() {
+        document.getElementById('lastUpdated').textContent =
+            'Last updated: ' + new Date().toLocaleTimeString();
+    }
+
+    async function fetchReadings() {
+        try {
+            const res = await fetch(READING_API + '/latest');
+            if (!res.ok) throw new Error();
+            const d = await res.json();
+            document.getElementById('voltage').textContent     = fmt(d.voltage,     1);
+            document.getElementById('current').textContent     = fmt(d.current,     3);
+            document.getElementById('power').textContent       = fmt(d.power,       2);
+            document.getElementById('energy').textContent      = fmt(d.energy,      4);
+            document.getElementById('frequency').textContent   = fmt(d.frequency,   1);
+            document.getElementById('powerFactor').textContent = fmt(d.powerFactor, 2);
+            setOnline(true);
+            stampUpdated();
+        } catch {
+            setOnline(false);
+        }
+    }
+
+    async function fetchRelay() {
+        const id = document.getElementById('deviceId').value;
+        try {
+            const res = await fetch(`${RELAY_API}/${id}`);
+            const d   = await res.json();
+            relayState = d.relay1;
+            syncRelayUI(relayState);
+            getLogs();
+        } catch (e) { console.error('Relay fetch error', e); }
+    }
+
+    async function toggleRelay() {
+        const id  = document.getElementById('deviceId').value;
+        const now = document.getElementById('relayToggle').checked ? 1 : 0;
+        try {
+            const res = await fetch(`${RELAY_API}/${id}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ relay1: now, source: 'web' })
+            });
+            const d = await res.json();
+            relayState = d.relay1;
+            syncRelayUI(relayState);
+            getLogs();
+        } catch { alert('Error toggling relay — is the server running?'); }
+    }
+
+    function syncRelayUI(state) {
+        const txt = document.getElementById('relayText');
+        txt.textContent = state === 1 ? 'ON' : 'OFF';
+        txt.className   = state === 1 ? 'st-on' : 'st-off';
+        document.getElementById('relayToggle').checked = state === 1;
+    }
+
+    async function getLogs() {
+        const id = document.getElementById('deviceId').value;
+        try {
+            const res    = await fetch(`${RELAY_API}/${id}/events?limit=10`);
+            const events = await res.json();
+            const list   = document.getElementById('logList');
+            if (!events.length) {
+                list.innerHTML = '<li class="log-item"><span class="l-time">—</span><span>No events yet</span></li>';
+                return;
             }
-        }
+            list.innerHTML = events.map(e => `
+                <li class="log-item">
+                    <span class="l-dot ${e.relay1 === 1 ? 'dot-on' : 'dot-off'}"></span>
+                    <span class="l-time">${new Date(e.created_at).toLocaleString()}</span>
+                    <span class="l-src">${e.source}</span>
+                    <span>→ Relay <strong>${e.relay1 === 1 ? 'ON' : 'OFF'}</strong></span>
+                </li>`).join('');
+        } catch (e) { console.error('Logs error', e); }
+    }
 
-        async function toggleRelay() {
-            const deviceId = document.getElementById('deviceId').value;
-            const newState = currentState === 1 ? 0 : 1;
-            
-            try {
-                const res = await fetch(`${API_URL}/${deviceId}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ relay1: newState, source: 'web' })
-                });
-                const data = await res.json();
-                currentState = data.relay1;
-                updateDisplay(currentState);
-                getLogs();
-            } catch (err) {
-                console.error(err);
-                alert('Error toggling relay');
-            }
-        }
+    function startPolling() {
+        fetchReadings();
+        fetchRelay();
+        clearInterval(timer);
+        timer = setInterval(() => { fetchReadings(); fetchRelay(); }, 5000);
+    }
 
-        async function getLogs() {
-            const deviceId = document.getElementById('deviceId').value;
-            try {
-                const res = await fetch(`${API_URL}/${deviceId}/events?limit=10`);
-                const events = await res.json();
-                
-                const list = document.getElementById('logList');
-                list.innerHTML = events.map(e => 
-                    `<li>${new Date(e.created_at).toLocaleString()} - ${e.source} set relay to ${e.relay1}</li>`
-                ).join('');
-            } catch (err) {
-                console.error(err);
-            }
-        }
-
-        function updateDisplay(state) {
-            const el = document.getElementById('currentStatus');
-            el.textContent = state === 1 ? 'ON' : 'OFF';
-            el.className = `status ${state === 1 ? 'on' : 'off'}`;
-        }
-
-        // Initial load
-        getStatus();
-    </script>
+    document.getElementById('deviceId').addEventListener('change', startPolling);
+    startPolling();
+</script>
 </body>
 </html>
